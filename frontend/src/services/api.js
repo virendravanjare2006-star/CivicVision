@@ -20,6 +20,7 @@ async function apiFetch(endpoint, options = {}) {
 
   const response = await fetch(url, {
     ...options,
+    credentials: 'same-origin',
     headers: {
       ...defaultHeaders,
       ...options.headers,
@@ -41,6 +42,23 @@ async function apiFetch(endpoint, options = {}) {
 export const api = {
   // Backend health check
   getHealth: () => apiFetch('/health'),
+
+  // Account and session management
+  register: (credentials) =>
+    apiFetch('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(credentials),
+    }),
+  login: (credentials) =>
+    apiFetch('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(credentials),
+    }),
+  getCurrentUser: () => apiFetch('/auth/me'),
+  logout: () =>
+    apiFetch('/auth/logout', {
+      method: 'POST',
+    }),
 
   // Dashboard summary metrics
   getDashboard: () => apiFetch('/dashboard'),

@@ -55,6 +55,15 @@ def init_db():
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+            password_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    """)
+
     # Check if database is empty to insert demo data only once
     cursor.execute("SELECT COUNT(*) FROM hazards")
     count = cursor.fetchone()[0]
@@ -81,6 +90,45 @@ def init_db():
         print(f"[CivicVision DB] Database already contains {count} records. Skipping seed.")
 
     conn.close()
+
+
+def create_user(email, password_hash):
+    """Creates an account and returns its public profile."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)",
+            (email, password_hash, datetime.now(timezone.utc).isoformat())
+        )
+        conn.commit()
+        user_id = cursor.lastrowid
+    finally:
+        conn.close()
+    return get_user_by_id(user_id)
+
+
+def get_user_by_email(email):
+    """Retrieves an account by its normalized email address."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE email = ?", (email,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_user_by_id(user_id):
+    """Retrieves an account by ID without exposing its password hash."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id, email, created_at FROM users WHERE id = ?",
+        (user_id,)
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
 
 
 def haversine_distance(lat1, lon1, lat2, lon2):

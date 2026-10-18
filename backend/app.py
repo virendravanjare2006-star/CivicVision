@@ -8,9 +8,13 @@ and geographic duplicate detection.
 """
 
 import os
+import re
+import sqlite3
 import uuid
-from flask import Flask, request, jsonify, send_from_directory
+from functools import wraps
+from flask import Flask, request, jsonify, send_from_directory, session
 from flask_cors import CORS
+from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
 import database
@@ -18,7 +22,15 @@ from detection import detect_hazard, ALLOWED_EXTENSIONS, MAX_FILE_SIZE_BYTES, de
 
 # Initialize Flask application
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get(
+        "CIVICVISION_CORS_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173"
+    ).split(",")
+    if origin.strip()
+]
+CORS(app, resources={r"/api/*": {"origins": CORS_ORIGINS}}, supports_credentials=True)
 
 # Configuration
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -26,15 +38,107 @@ UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_SIZE_BYTES
+app.config.update(
+    SECRET_KEY=os.environ.get("CIVICVISION_SECRET_KEY") or os.urandom(32),
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.environ.get("CIVICVISION_COOKIE_SECURE", "").lower() == "true",
+)
 
 # Ensure database is initialized with demonstration data on first start
 database.init_db()
+
+
+def login_required(view):
+    """Require a valid authenticated account for an API or upload endpoint."""
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        user_id = session.get("user_id")
+        user = database.get_user_by_id(user_id) if user_id else None
+        if user is None:
+            session.clear()
+            return jsonify({"success": False, "error": "Authentication required."}), 401
+        return view(*args, **kwargs)
+    return wrapped
 
 
 def is_allowed_file(filename):
     """Checks if file has an approved image extension."""
     ext = os.path.splitext(filename)[1].lower()
     return ext in ALLOWED_EXTENSIONS
+
+
+# ---------------------------------------------------------
+# Authentication API
+# ---------------------------------------------------------
+@app.route("/api/auth/register", methods=["POST"])
+def register():
+    """Creates an account and starts an authenticated session."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"success": False, "error": "Request body must be JSON."}), 400
+
+    email = data.get("email", "")
+    password = data.get("password", "")
+    if not isinstance(email, str) or not isinstance(password, str):
+        return jsonify({"success": False, "error": "Email and password must be strings."}), 400
+    email = email.strip().lower()
+    if len(email) > 254 or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+        return jsonify({"success": False, "error": "Enter a valid email address."}), 400
+    if len(password) < 8:
+        return jsonify({"success": False, "error": "Password must be at least 8 characters."}), 400
+    if len(password) > 128:
+        return jsonify({"success": False, "error": "Password must be no more than 128 characters."}), 400
+
+    try:
+        user = database.create_user(email, generate_password_hash(password))
+    except sqlite3.IntegrityError:
+        return jsonify({"success": False, "error": "An account with this email already exists."}), 409
+
+    session.clear()
+    session["user_id"] = user["id"]
+    return jsonify({"success": True, "user": user}), 201
+
+
+@app.route("/api/auth/login", methods=["POST"])
+def login():
+    """Verifies account credentials and starts an authenticated session."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"success": False, "error": "Request body must be JSON."}), 400
+
+    email = data.get("email", "")
+    password = data.get("password", "")
+    if not isinstance(email, str) or not isinstance(password, str):
+        return jsonify({"success": False, "error": "Email and password must be strings."}), 400
+    if len(email) > 254 or len(password) > 128:
+        return jsonify({"success": False, "error": "Invalid email or password."}), 401
+
+    user = database.get_user_by_email(email.strip().lower())
+    if user is None or not check_password_hash(user["password_hash"], password):
+        return jsonify({"success": False, "error": "Invalid email or password."}), 401
+
+    session.clear()
+    session["user_id"] = user["id"]
+    return jsonify({
+        "success": True,
+        "user": {"id": user["id"], "email": user["email"], "created_at": user["created_at"]}
+    }), 200
+
+
+@app.route("/api/auth/me", methods=["GET"])
+@login_required
+def current_user():
+    """Returns the authenticated account profile."""
+    user = database.get_user_by_id(session["user_id"])
+    return jsonify({"success": True, "user": user}), 200
+
+
+@app.route("/api/auth/logout", methods=["POST"])
+def logout():
+    """Ends the current session."""
+    session.clear()
+    return jsonify({"success": True}), 200
 
 
 # ---------------------------------------------------------
@@ -61,6 +165,7 @@ def health_check():
 # Static Uploads Serving
 # ---------------------------------------------------------
 @app.route("/uploads/<path:filename>", methods=["GET"])
+@login_required
 def serve_upload(filename):
     """Serves uploaded or demonstration road hazard images."""
     return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
@@ -70,6 +175,7 @@ def serve_upload(filename):
 # Dashboard Metrics API
 # ---------------------------------------------------------
 @app.route("/api/dashboard", methods=["GET"])
+@login_required
 def get_dashboard():
     """
     Returns computed summary stats, category counts, severity distribution,
@@ -92,6 +198,7 @@ def get_dashboard():
 # Hazards CRUD Endpoints
 # ---------------------------------------------------------
 @app.route("/api/hazards", methods=["GET"])
+@login_required
 def list_hazards():
     """
     Retrieves all hazards with optional filtering by category, severity,
@@ -117,6 +224,7 @@ def list_hazards():
 
 
 @app.route("/api/hazards/<int:hazard_id>", methods=["GET"])
+@login_required
 def get_hazard(hazard_id):
     """Retrieves full details for a single hazard by ID."""
     hazard = database.get_hazard_by_id(hazard_id)
@@ -133,6 +241,7 @@ def get_hazard(hazard_id):
 
 
 @app.route("/api/hazards", methods=["POST"])
+@login_required
 def add_hazard():
     """
     Creates a new hazard report.
@@ -233,6 +342,7 @@ def add_hazard():
 
 
 @app.route("/api/hazards/<int:hazard_id>", methods=["PATCH"])
+@login_required
 def modify_hazard(hazard_id):
     """
     Updates hazard information or status.
@@ -275,6 +385,7 @@ def modify_hazard(hazard_id):
 
 
 @app.route("/api/hazards/<int:hazard_id>", methods=["DELETE"])
+@login_required
 def remove_hazard(hazard_id):
     """Deletes a hazard record after confirmed action."""
     existing = database.get_hazard_by_id(hazard_id)
@@ -298,6 +409,7 @@ def remove_hazard(hazard_id):
 # AI Image Detection API (Section 6)
 # ---------------------------------------------------------
 @app.route("/api/detection", methods=["POST"])
+@login_required
 def detect_image():
     """
     Accepts road image upload or preset demo request.

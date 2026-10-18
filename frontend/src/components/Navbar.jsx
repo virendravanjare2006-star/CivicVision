@@ -1,8 +1,8 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { PlusCircle, Radio, Sparkles } from 'lucide-react';
+import { LogOut, PlusCircle, Sparkles } from 'lucide-react';
 
-export default function Navbar() {
+export default function Navbar({ user, onLogout, authError }) {
   const location = useLocation();
 
   const getPageTitle = (pathname) => {
@@ -23,7 +23,7 @@ export default function Navbar() {
   };
 
   return (
-    <header className="h-16 bg-[#0f172a]/95 backdrop-blur border-b border-slate-800 px-6 flex items-center justify-between shrink-0">
+    <header className="relative h-16 bg-[#0f172a]/95 backdrop-blur border-b border-slate-800 px-6 flex items-center justify-between shrink-0">
       <div>
         <h1 className="text-base font-semibold text-white tracking-tight flex items-center gap-2">
           {getPageTitle(location.pathname)}
@@ -34,6 +34,7 @@ export default function Navbar() {
       </div>
 
       <div className="flex items-center gap-3">
+        <span className="hidden md:block text-xs text-slate-400">{user.email}</span>
         <Link
           to="/detection"
           className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-cyan-300 bg-cyan-950/60 border border-cyan-700/50 hover:bg-cyan-900/60 transition"
@@ -49,7 +50,20 @@ export default function Navbar() {
           <PlusCircle className="w-4 h-4" />
           <span>Report Hazard</span>
         </Link>
+        <button
+          type="button"
+          onClick={onLogout}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 border border-slate-700 hover:bg-slate-800 transition"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          <span>Sign out</span>
+        </button>
       </div>
+      {authError && (
+        <p role="alert" className="absolute right-6 top-14 z-10 rounded-lg border border-rose-900/70 bg-rose-950 px-3 py-2 text-xs text-rose-300">
+          {authError}
+        </p>
+      )}
     </header>
   );
 }

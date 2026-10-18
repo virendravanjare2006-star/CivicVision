@@ -38,6 +38,7 @@ field project/
 │   ├── seed_data.py           # Demonstration hazard dataset (labelled as demo)
 │   ├── create_demo_images.py  # Utility script generating visual sample evidence
 │   ├── test_backend.py        # Unit test suite for backend logic
+│   ├── test_auth.py           # Authentication API tests
 │   ├── requirements.txt       # Python package dependencies
 │   ├── civicvision.db         # Persistent SQLite database
 │   ├── models/                # Directory for placing custom ONNX neural weights
@@ -56,6 +57,7 @@ field project/
 │   │   │   ├── HazardMap.jsx        # Leaflet interactive map with custom pins & click-to-add
 │   │   │   ├── HazardList.jsx       # Searchable, filterable table with in-place status changer
 │   │   │   ├── Detection.jsx        # AI image upload, preset runner & 1-click database save
+│   │   │   ├── Login.jsx            # Account registration and sign-in
 │   │   │   └── ReportHazard.jsx     # Manual field report with GPS permission & safety warning
 │   │   ├── services/
 │   │   │   └── api.js               # Centralized REST API client
@@ -110,6 +112,22 @@ The Flask server will start at:
 👉 **`http://127.0.0.1:5000`**
 
 > **Note**: On the first start, CivicVision automatically creates `civicvision.db` and populates 8 clearly labelled demonstration hazard records so the dashboard looks functional immediately.
+
+### Account authentication
+
+Open the frontend and choose **Create an account** to register with an email address and password (at least 8 characters). Passwords are stored as hashes, and successful sign-in creates an HTTP-only, `SameSite=Lax` session cookie. The dashboard, hazard APIs, image detection, and uploaded images require a signed-in account. The health endpoint remains public.
+
+For production, configure a persistent, high-entropy `CIVICVISION_SECRET_KEY` shared by all backend workers. Set `CIVICVISION_COOKIE_SECURE=true` when the application is served over HTTPS. If the frontend uses a different origin, set `CIVICVISION_CORS_ORIGINS` to a comma-separated list of trusted origins; the default permits the two local Vite origins. Keep the frontend and API same-site so the `SameSite=Lax` session cookie is sent correctly.
+
+Example PowerShell configuration before starting the backend:
+
+```powershell
+$env:CIVICVISION_SECRET_KEY = "<generate and provide a unique secret>"
+$env:CIVICVISION_COOKIE_SECURE = "true" # HTTPS deployments only
+python app.py
+```
+
+The backend generates a temporary secret when `CIVICVISION_SECRET_KEY` is unset; this is intended for local development only and invalidates sessions when the process restarts.
 
 ---
 
@@ -235,7 +253,7 @@ CivicVision will re-create the schema and re-seed the default 8 demonstration re
 
 ## 🧪 Automated Testing
 
-CivicVision includes two automated test suites:
+CivicVision includes three automated test suites:
 
 ### 1. Backend Unit Tests
 ```bash
@@ -244,7 +262,14 @@ python test_backend.py
 ```
 *Tests SQLite connection, schema, dashboard metrics, Haversine duplicate calculations, CRUD operations, and detection fallback.*
 
-### 2. End-to-End Live Integration Tests
+### 2. Authentication API Tests
+```bash
+cd backend
+python -m unittest test_auth
+```
+*Tests registration, validation, password login, session/logout, and API authorization using a temporary database.*
+
+### 3. End-to-End Live Integration Tests
 ```bash
 python test_e2e.py
 ```
