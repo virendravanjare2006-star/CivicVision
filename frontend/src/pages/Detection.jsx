@@ -14,7 +14,7 @@ import {
   Cpu,
   Layers
 } from 'lucide-react';
-import { api } from '../services/api';
+import { api, getUploadUrl } from '../services/api';
 import DuplicateModal from '../components/DuplicateModal';
 
 export default function Detection() {
@@ -81,10 +81,10 @@ export default function Detection() {
 
     // Set demo image preview
     const demoImages = {
-      pothole: '/uploads/demo_pothole_1.jpg',
-      manhole: '/uploads/demo_manhole_1.jpg',
-      crack: '/uploads/demo_crack_1.jpg',
-      dumping: '/uploads/demo_dumping_1.jpg',
+      pothole: getUploadUrl('/uploads/demo_pothole_1.jpg'),
+      manhole: getUploadUrl('/uploads/demo_manhole_1.jpg'),
+      crack: getUploadUrl('/uploads/demo_crack_1.jpg'),
+      dumping: getUploadUrl('/uploads/demo_dumping_1.jpg'),
     };
     setPreviewUrl(demoImages[presetKey]);
 

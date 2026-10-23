@@ -23,13 +23,18 @@ from detection import detect_hazard, ALLOWED_EXTENSIONS, MAX_FILE_SIZE_BYTES, de
 # Initialize Flask application
 app = Flask(__name__)
 CORS_ORIGINS = [
+    "https://civic-vision-one.vercel.app",
+    "https://civicvision-moku.onrender.com",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+CORS_ORIGINS.extend(
     origin.strip()
     for origin in os.environ.get(
-        "CIVICVISION_CORS_ORIGINS",
-        "http://localhost:5173,http://127.0.0.1:5173"
+        "CIVICVISION_CORS_ORIGINS", ""
     ).split(",")
-    if origin.strip()
-]
+    if origin.strip() and origin.strip() not in CORS_ORIGINS
+)
 CORS(app, resources={r"/api/*": {"origins": CORS_ORIGINS}}, supports_credentials=True)
 
 # Configuration
@@ -41,8 +46,8 @@ app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_SIZE_BYTES
 app.config.update(
     SECRET_KEY=os.environ.get("CIVICVISION_SECRET_KEY") or os.urandom(32),
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=os.environ.get("CIVICVISION_COOKIE_SECURE", "").lower() == "true",
+    SESSION_COOKIE_SAMESITE=os.environ.get("CIVICVISION_SESSION_COOKIE_SAMESITE", "None"),
+    SESSION_COOKIE_SECURE=os.environ.get("CIVICVISION_COOKIE_SECURE", "true").lower() == "true",
 )
 
 # Ensure database is initialized with demonstration data on first start

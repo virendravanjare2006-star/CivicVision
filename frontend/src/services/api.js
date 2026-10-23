@@ -5,7 +5,12 @@
  * Provides clean, centralized REST calls to the Flask backend.
  */
 
-const API_BASE = '/api';
+const API_ORIGIN = (import.meta.env.VITE_API_URL || 'https://civicvision-moku.onrender.com').replace(/\/+$/, '');
+const API_BASE = `${API_ORIGIN}/api`;
+
+export const getUploadUrl = (path) => (
+  path.startsWith('http') ? path : `${API_ORIGIN}${path.startsWith('/') ? path : `/uploads/${path}`}`
+);
 
 /**
  * Generic fetch wrapper with JSON error parsing
@@ -20,7 +25,7 @@ async function apiFetch(endpoint, options = {}) {
 
   const response = await fetch(url, {
     ...options,
-    credentials: 'same-origin',
+    credentials: 'include',
     headers: {
       ...defaultHeaders,
       ...options.headers,

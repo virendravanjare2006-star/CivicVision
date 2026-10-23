@@ -12,7 +12,12 @@ class AuthenticationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.original_db_path = database.DB_PATH
-        app.config.update(TESTING=True, SECRET_KEY="test-only-secret")
+        app.config.update(
+            TESTING=True,
+            SECRET_KEY="test-only-secret",
+            SESSION_COOKIE_SAMESITE="Lax",
+            SESSION_COOKIE_SECURE=False
+        )
 
     @classmethod
     def tearDownClass(cls):
@@ -63,6 +68,21 @@ class AuthenticationTests(unittest.TestCase):
             json={"email": "TEST@example.com", "password": "secure-pass-123"}
         )
         self.assertEqual(duplicate.status_code, 409)
+
+    def test_cors_allows_production_frontend_and_configured_test_origins(self):
+        response = self.client.options(
+            "/api/auth/register",
+            headers={
+                "Origin": "https://civic-vision-one.vercel.app",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type",
+            }
+        )
+        self.assertEqual(
+            response.headers.get("Access-Control-Allow-Origin"),
+            "https://civic-vision-one.vercel.app"
+        )
+        self.assertIn("true", response.headers.get("Access-Control-Allow-Credentials", ""))
 
     def test_registration_validates_email_and_password(self):
         invalid_email = self.client.post(

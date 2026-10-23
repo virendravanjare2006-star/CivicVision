@@ -115,15 +115,17 @@ The Flask server will start at:
 
 ### Account authentication
 
-Open the frontend and choose **Create an account** to register with an email address and password (at least 8 characters). Passwords are stored as hashes, and successful sign-in creates an HTTP-only, `SameSite=Lax` session cookie. The dashboard, hazard APIs, image detection, and uploaded images require a signed-in account. The health endpoint remains public.
+Open the frontend and choose **Create an account** to register with an email address and password (at least 8 characters). Passwords are stored as hashes, and successful sign-in creates an HTTP-only session cookie. The dashboard, hazard APIs, image detection, and uploaded images require a signed-in account. The health endpoint remains public.
 
-For production, configure a persistent, high-entropy `CIVICVISION_SECRET_KEY` shared by all backend workers. Set `CIVICVISION_COOKIE_SECURE=true` when the application is served over HTTPS. If the frontend uses a different origin, set `CIVICVISION_CORS_ORIGINS` to a comma-separated list of trusted origins; the default permits the two local Vite origins. Keep the frontend and API same-site so the `SameSite=Lax` session cookie is sent correctly.
+The frontend API client uses `VITE_API_URL` as the Flask server base URL (default: `https://civicvision-moku.onrender.com`). For a Vercel deployment, set `VITE_API_URL` to that Render URL in the Vercel project environment and redeploy. The Flask CORS allowlist includes `https://civic-vision-one.vercel.app`; append any additional Vercel preview/testing origins to `CIVICVISION_CORS_ORIGINS` as a comma-separated list.
+
+For production, configure a persistent, high-entropy `CIVICVISION_SECRET_KEY` shared by all backend workers. Cross-site Vercel-to-Render sessions use `SameSite=None` and `Secure` cookies by default. For local HTTP development, set `CIVICVISION_SESSION_COOKIE_SAMESITE=Lax` and `CIVICVISION_COOKIE_SECURE=false`.
 
 Example PowerShell configuration before starting the backend:
 
 ```powershell
 $env:CIVICVISION_SECRET_KEY = "<generate and provide a unique secret>"
-$env:CIVICVISION_COOKIE_SECURE = "true" # HTTPS deployments only
+$env:CIVICVISION_CORS_ORIGINS = "https://your-preview-domain.vercel.app"
 python app.py
 ```
 

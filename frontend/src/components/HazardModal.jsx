@@ -11,7 +11,7 @@ import {
   CheckCircle,
   HelpCircle
 } from 'lucide-react';
-import { api } from '../services/api';
+import { api, getUploadUrl } from '../services/api';
 
 export default function HazardModal({ hazard, onClose, onUpdated, onDeleted }) {
   const [status, setStatus] = useState(hazard?.status || 'Detected');
@@ -78,11 +78,7 @@ export default function HazardModal({ hazard, onClose, onUpdated, onDeleted }) {
     }
   };
 
-  const imageUrl = hazard.image_path
-    ? hazard.image_path.startsWith('http')
-      ? hazard.image_path
-      : `/uploads/${hazard.image_path}`
-    : null;
+  const imageUrl = hazard.image_path ? getUploadUrl(hazard.image_path) : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
